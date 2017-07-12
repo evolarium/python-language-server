@@ -1,7 +1,8 @@
 # Copyright 2017 Palantir Technologies, Inc.
 import json
 import logging
-import re
+import uuid
+
 import jsonrpc
 
 log = logging.getLogger(__name__)
@@ -34,26 +35,22 @@ class JSONRPCServer(object):
 
     def call(self, method, params=None):
         """ Call a method on the client. TODO: return the result. """
+        log.debug("Sending request %s: %s", method, params)
         req = jsonrpc.jsonrpc2.JSONRPC20Request(method=method, params=params)
+        req._id = str(uuid.uuid4())
         self._write_message(req.data)
 
     def notify(self, method, params=None):
         """ Send a notification to the client, expects no response. """
+        log.debug("Sending notification %s: %s", method, params)
         req = jsonrpc.jsonrpc2.JSONRPC20Request(
             method=method, params=params, is_notification=True
         )
         self._write_message(req.data)
 
-    def __getitem__(self, item):
-        # The jsonrpc dispatcher uses getitem to retrieve the RPC method implementation.
-        # We convert that to our own convention.
-        if not hasattr(self, _method_to_string(item)):
-            raise KeyError("Cannot find method %s" % item)
-        return getattr(self, _method_to_string(item))
-
     def _content_length(self, line):
-        if line.startswith("Content-Length: "):
-            _, value = line.split("Content-Length: ")
+        if line.startswith(b'Content-Length: '):
+            _, value = line.split(b'Content-Length: ')
             value = value.strip()
             try:
                 return int(value)
@@ -86,20 +83,5 @@ class JSONRPCServer(object):
             "Content-Type: application/vscode-jsonrpc; charset=utf8\r\n\r\n"
             "{}".format(content_length, body)
         )
-        self.wfile.write(response)
+        self.wfile.write(response.encode('utf-8'))
         self.wfile.flush()
-
-
-_RE_FIRST_CAP = re.compile('(.)([A-Z][a-z]+)')
-_RE_ALL_CAP = re.compile('([a-z0-9])([A-Z])')
-
-
-def _method_to_string(method):
-    return "m_" + _camel_to_underscore(
-        method.replace("/", "__").replace("$", "")
-    )
-
-
-def _camel_to_underscore(string):
-    s1 = _RE_FIRST_CAP.sub(r'\1_\2', string)
-    return _RE_ALL_CAP.sub(r'\1_\2', s1).lower()

@@ -1,5 +1,5 @@
 # Copyright 2017 Palantir Technologies, Inc.
-""" Some VSCode constants
+"""Some Language Server Protocol constants
 
 https://github.com/Microsoft/language-server-protocol/blob/master/protocol.md
 """
@@ -24,6 +24,13 @@ class CompletionItemKind(object):
     Color = 16
     File = 17
     Reference = 18
+
+
+class MessageType(object):
+    Error = 1
+    Warning = 2
+    Info = 3
+    Log = 4
 
 
 class SymbolKind(object):
