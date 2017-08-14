@@ -4,7 +4,7 @@ import logging
 import os
 import re
 import sys
-from urllib.parse import urlparse, urlunparse
+from urllib.parse import urlparse, urlunparse, quote, unquote
 
 import jedi
 
@@ -23,9 +23,9 @@ class Workspace(object):
     M_APPLY_EDIT = 'workspace/applyEdit'
     M_SHOW_MESSAGE = 'window/showMessage'
 
-    def __init__(self, root, lang_server=None):
-        self._url_parsed = urlparse(root)
-        self.root = self._url_parsed.path
+    def __init__(self, root_uri, lang_server=None):
+        self._url_parsed = urlparse(root_uri)
+        self.root = unquote(self._url_parsed.path)
         self._docs = {}
         self._lang_server = lang_server
 
@@ -36,7 +36,7 @@ class Workspace(object):
         return self._docs[doc_uri]
 
     def put_document(self, doc_uri, content, version=None):
-        path = urlparse(doc_uri).path
+        path = unquote(urlparse(doc_uri).path)
         self._docs[doc_uri] = Document(
             doc_uri, content, sys_path=self.syspath_for_path(path), version=version
         )
@@ -72,7 +72,7 @@ class Workspace(object):
         return path
 
     def is_in_workspace(self, path):
-        return os.path.commonprefix((self.root, path))
+        return not self.root or os.path.commonprefix((self.root, path))
 
 
 class Document(object):
@@ -80,7 +80,7 @@ class Document(object):
     def __init__(self, uri, source=None, version=None, local=True, sys_path=None):
         self.uri = uri
         self.version = version
-        self.path = urlparse(uri).path
+        self.path = unquote(urlparse(uri).path)
         self.filename = os.path.basename(self.path)
 
         self._local = local
@@ -92,9 +92,7 @@ class Document(object):
 
     @property
     def lines(self):
-        # An empty document is much nicer to deal with assuming it has a single
-        # line with no characters and no final newline.
-        return self.source.splitlines(True) or [u'']
+        return self.source.splitlines(True)
 
     @property
     def source(self):
@@ -118,7 +116,13 @@ class Document(object):
         end_line = change_range['end']['line']
         end_col = change_range['end']['character']
 
+        # Check for an edit occuring at the very end of the file
+        if start_line == len(self.lines):
+            self._source = self.source + text
+            return
+
         new = io.StringIO()
+
         # Iterate over the existing document until we hit the edit range,
         # at which point we write the new text, then loop until we hit
         # the end of the range and continue writing.
@@ -181,5 +185,10 @@ def get_uri_like(doc_uri, path):
     unicode objects.
     """
     parts = list(urlparse(doc_uri))
+    if path[0] != '/' and ':' in path:  # fix path for windows
+        drivespec, path = path.split(':', 1)
+        path = '/' + drivespec + ':' + quote(path.replace('\\', '/'))
+    else:
+        path = quote(path)
     parts[2] = path
     return urlunparse([str(p) for p in parts])

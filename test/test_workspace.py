@@ -36,6 +36,10 @@ def test_bad_get_document(pyls):
 
 def test_uri_like():
     assert workspace.get_uri_like('file:///some-path', '/my/path') == 'file:///my/path'
+    win_doc_uri = r'file:///D:/hello%20world.py'
+    win_doc_path = r'D:\hello world.py'
+    win_uri = workspace.get_uri_like(win_doc_uri, win_doc_path)
+    assert win_uri == win_doc_uri
 
 
 def test_non_root_project(pyls):
@@ -51,3 +55,15 @@ def test_non_root_project(pyls):
     pyls.workspace.put_document(test_uri, 'assert True')
     test_doc = pyls.workspace.get_document(test_uri)
     assert project_root in pyls.workspace.syspath_for_path(test_doc.path)
+
+
+def test_urlencoded_paths():
+    root_uri = "file:///Encoded%20%3FSpace/"
+    file_uri = root_uri + "test.py"
+
+    ws = workspace.Workspace(root_uri)
+    assert ws.root == "/Encoded ?Space/"
+
+    ws.put_document(file_uri, "")
+    doc = ws.get_document(file_uri)
+    assert doc.path == '/Encoded ?Space/test.py'
