@@ -2,7 +2,7 @@
 import logging
 import pycodestyle
 import os
-from pyls import config as pyls_config, hookimpl
+from pyls import config as pyls_config, hookimpl, lsp
 
 log = logging.getLogger(__name__)
 
@@ -11,7 +11,7 @@ CONFIG_FILES = ['tox.ini', 'pep8.cfg', 'setup.cfg', 'pycodestyle.cfg']
 
 
 @hookimpl
-def pyls_lint(config, workspace, document):
+def pyls_lint(config, document):
     # Read config from all over the place
     config_files = config.find_parents(document.path, CONFIG_FILES)
 
@@ -64,24 +64,18 @@ class PyCodeStyleDiagnosticReport(pycodestyle.BaseReport):
             },
         }
         code, _message = text.split(" ", 1)
-        severity = self._get_severity(code)
 
         self.diagnostics.append({
             'source': 'pycodestyle',
             'range': range,
             'message': text,
             'code': code,
-            'severity': severity
+            'severity': _get_severity(code)
         })
 
-    def _get_severity(self, code):
-        """ VSCode Severity Mapping
-        ERROR: 1,
-        WARNING: 2,
-        INFO: 3,
-        HINT: 4
-        """
-        if code[0] == 'E':
-            return 1
-        elif code[0] == 'W':
-            return 2
+
+def _get_severity(code):
+    if code[0] == 'E':
+        return lsp.DiagnosticSeverity.Error
+    elif code[0] == 'W':
+        return lsp.DiagnosticSeverity.Warning
